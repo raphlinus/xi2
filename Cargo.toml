@@ -1,0 +1,13 @@
+[package]
+name = "xi2"
+version = "0.1.0"
+authors = ["Raph Levien <raph.levien@gmail.com>"]
+license = "Apache-2.0"
+edition = "2018"
+
+[dependencies]
+piet-common = "0.0.2"
+piet = "0.0.2"
+kurbo = "0.2.1"
+druid = { path = "../../github/druid" }
+druid-shell = { path = "../../github/druid/druid-shell" }
