@@ -1,0 +1,10 @@
+[package]
+name = "xi-text-core"
+version = "0.1.0"
+authors = ["Raph Levien <raph.levien@gmail.com>"]
+license = "Apache-2.0"
+edition = "2018"
+
+[dependencies]
+xi-rope = { git = "https://github.com/xi-editor/xi-editor" }
+xi-unicode = { git = "https://github.com/xi-editor/xi-editor" }

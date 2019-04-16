@@ -1,4 +1,3 @@
-
 use kurbo::Rect;
 use piet::{FillRule, FontBuilder, RenderContext, Text, TextLayoutBuilder};
 use piet_common::Piet;
@@ -8,8 +7,8 @@ use druid_shell::win_main;
 
 use druid::widget::Widget;
 use druid::{
-    BoxConstraints, Geometry, HandlerCtx, Id, KeyEvent, KeyVariant, LayoutCtx, LayoutResult, PaintCtx, Ui,
-    UiMain, UiState,
+    BoxConstraints, Geometry, HandlerCtx, Id, KeyEvent, KeyVariant, LayoutCtx, LayoutResult,
+    PaintCtx, Ui, UiMain, UiState,
 };
 
 struct EditWidget {
@@ -42,7 +41,6 @@ impl Widget for EditWidget {
 
         let pos = (geom.pos.0, geom.pos.1 + font_size);
         paint_ctx.render_ctx.draw_text(&text_layout, pos, &brush);
-
     }
 
     fn layout(
@@ -81,7 +79,8 @@ impl EditWidget {
 fn build_ui(ui: &mut UiState) {
     let edit_widget = EditWidget {
         text: "".to_string(),
-    }.ui(ui);
+    }
+    .ui(ui);
     let root = edit_widget;
     ui.set_root(root);
     ui.set_focus(Some(root));
