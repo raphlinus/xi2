@@ -6,8 +6,4 @@ license = "Apache-2.0"
 edition = "2018"
 
 [dependencies]
-piet-common = "0.0.2"
-piet = "0.0.2"
-kurbo = "0.2.1"
-druid = { path = "../../../github/druid" }
-druid-shell = { path = "../../../github/druid/druid-shell" }
+druid = { git = "https://github.com/linebender/druid", rev = "90d81c9452441cd888b81b31a3d22f0bdcee1f3d" }

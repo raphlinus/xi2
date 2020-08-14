@@ -1,101 +1,74 @@
-use kurbo::Rect;
-use piet::{FillRule, FontBuilder, RenderContext, Text, TextLayoutBuilder};
-use piet_common::Piet;
-
-use druid_shell::platform::WindowBuilder;
-use druid_shell::win_main;
-
-use druid::widget::Widget;
+use druid::widget::Label;
 use druid::{
-    BoxConstraints, Geometry, HandlerCtx, Id, KeyEvent, KeyVariant, LayoutCtx, LayoutResult,
-    PaintCtx, Ui, UiMain, UiState,
+    AppLauncher, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
+    PaintCtx, Size, UpdateCtx, Widget, WindowDesc,
 };
 
-struct EditWidget {
-    // TODO: change to xi-rope
+use druid::piet::{Color, FontBuilder, PietText, PietTextLayout, RenderContext, Text, TextLayoutBuilder};
+
+#[derive(Clone, Data)]
+struct XiState {
     text: String,
 }
 
-impl EditWidget {
-    fn get_layout(&self, rt: &mut Piet, font_size: f32) -> <Piet as RenderContext>::TextLayout {
-        // TODO: caching of both the format and the layout
-        let font = rt
-            .text()
-            .new_font_by_name("Consolas", font_size)
-            .unwrap()
-            .build()
-            .unwrap();
-        rt.text()
-            .new_text_layout(&font, &self.text)
-            .unwrap()
-            .build()
-            .unwrap()
-    }
+#[derive(Default)]
+struct EditWidget {
+    // One per line
+    layouts: Vec<PietTextLayout>,
 }
 
-impl Widget for EditWidget {
-    fn paint(&mut self, paint_ctx: &mut PaintCtx, geom: &Geometry) {
-        let font_size = 15.0;
-        let text_layout = self.get_layout(paint_ctx.render_ctx, font_size);
-        let brush = paint_ctx.render_ctx.solid_brush(0xf0f0eaff).unwrap();
+impl Widget<XiState> for EditWidget {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut XiState, env: &Env) {
+    }
 
-        let pos = (geom.pos.0, geom.pos.1 + font_size);
-        paint_ctx.render_ctx.draw_text(&text_layout, pos, &brush);
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &XiState, env: &Env) {
+        match event {
+            LifeCycle::WidgetAdded => self.update_layouts(&data.text, &mut ctx.text()),
+            _ => (),
+        }
+    }
+
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &XiState, data: &XiState, env: &Env) {
+        let mut text = ctx.text();
+        self.update_layouts(&data.text, &mut text);
     }
 
     fn layout(
         &mut self,
+        ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _children: &[Id],
-        _size: Option<(f32, f32)>,
-        _ctx: &mut LayoutCtx,
-    ) -> LayoutResult {
-        LayoutResult::Size(bc.constrain((500.0, 400.0)))
+        data: &XiState,
+        env: &Env,
+    ) -> druid::Size {
+        bc.constrain(Size::new(400.0, 400.0))
     }
 
-    fn key(&mut self, event: &KeyEvent, ctx: &mut HandlerCtx) -> bool {
-        let dbg = match event.key {
-            KeyVariant::Vkey(i) => format!("vkey {}", i),
-            KeyVariant::Char(c) => format!("char {:?}", c),
-        };
-        println!("key {} {}", dbg, event.mods);
-        match event.key {
-            KeyVariant::Char(c) => {
-                self.text.push(c);
-                ctx.invalidate();
-            }
-            _ => (),
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &XiState, env: &Env) {
+        let mut y = 20.0;
+        for layout in &self.layouts {
+            ctx.draw_text(layout, (10.0, y), &Color::WHITE);
+            y += 20.0;
         }
-        false
     }
 }
 
 impl EditWidget {
-    fn ui(self, ctx: &mut Ui) -> Id {
-        ctx.add(self, &[])
+    fn update_layouts(&mut self, text: &str, factory: &mut PietText) {
+        let font = factory.new_font_by_name("Segoe UI", 14.0).build().unwrap();
+        let layout: druid::piet::PietTextLayout = factory.new_text_layout(&font, "This is the text", None).build().unwrap();
+        self.layouts = vec![layout];
+
     }
 }
 
-fn build_ui(ui: &mut UiState) {
-    let edit_widget = EditWidget {
-        text: "".to_string(),
-    }
-    .ui(ui);
-    let root = edit_widget;
-    ui.set_root(root);
-    ui.set_focus(Some(root));
+pub fn main() {
+    let main_window = WindowDesc::new(build_root_widget);
+    let initial_state = XiState { text: "This is the text".into() };
+    AppLauncher::with_window(main_window)
+        .launch(initial_state)
+        .expect("Failed to launch application");
 }
 
-fn main() {
-    druid_shell::init();
-
-    let mut run_loop = win_main::RunLoop::new();
-    let mut builder = WindowBuilder::new();
-    let mut state = UiState::new();
-    build_ui(&mut state);
-    builder.set_handler(Box::new(UiMain::new(state)));
-    builder.set_title("Xi2");
-    let window = builder.build().expect("window building");
-    window.show();
-    run_loop.run();
+fn build_root_widget() -> impl Widget<XiState> {
+    EditWidget::default()
 }

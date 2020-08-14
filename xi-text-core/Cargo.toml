@@ -6,5 +6,5 @@ license = "Apache-2.0"
 edition = "2018"
 
 [dependencies]
-xi-rope = { git = "https://github.com/xi-editor/xi-editor" }
-xi-unicode = { git = "https://github.com/xi-editor/xi-editor" }
+xi-rope = "0.3"
+xi-unicode = "0.2.1"
