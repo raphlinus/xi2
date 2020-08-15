@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 druid = { git = "https://github.com/linebender/druid", rev = "90d81c9452441cd888b81b31a3d22f0bdcee1f3d" }
 xi-rope = "0.3"
+xi-text-core = { path = "../xi-text-core" }

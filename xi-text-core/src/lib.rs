@@ -13,5 +13,8 @@
 // limitations under the License.
 
 mod backspace;
-pub mod edit;
-pub mod selection;
+mod edit;
+mod selection;
+
+pub use edit::EditOp;
+pub use selection::{Affinity, HorizPos, SelRegion, Selection};

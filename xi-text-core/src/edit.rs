@@ -1,4 +1,4 @@
-// Copyright 2019 The xi-editor Authors.
+// Copyright 2020 The xi-editor Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,84 +14,47 @@
 
 //! Edit operations.
 
-use std::ops::Deref;
+use xi_rope::{DeltaBuilder, Rope, RopeDelta};
 
-use xi_rope::{DeltaBuilder, Interval, Rope, RopeDelta};
+use crate::backspace;
+use crate::selection::{InsertDrift, Selection};
 
-use crate::backspace::offset_for_delete_backwards;
-use crate::selection::Selection;
-
-pub struct EditRequest {
-    pub edit: Option<(RopeDelta, EditType)>,
-    pub new_sel: Option<Selection>,
-}
-
-impl EditRequest {
-    fn new_edit(delta: RopeDelta, edit_type: EditType) -> EditRequest {
-        EditRequest {
-            edit: Some((delta, edit_type)),
-            new_sel: None,
-        }
-    }
-
-    fn nop() -> EditRequest {
-        EditRequest {
-            edit: None,
-            new_sel: None,
-        }
-    }
-}
-
-/// The type of the edit.
+/// An edit operation.
 ///
-/// TODO: possibly remove some.
-pub enum EditType {
-    /// A catchall for edits that don't fit elsewhere, and which should
-    /// always have their own undo groups; used for things like cut/copy/paste.
-    Other,
-    /// An insert from the keyboard/IME (not a paste or a yank).
-    InsertChars,
-    InsertNewline,
-    /// An indentation adjustment.
-    Indent,
-    Delete,
-    Undo,
-    Redo,
-    Transpose,
-    Surround,
+/// We explicitly represent an edit operation.
+pub enum EditOp {
+    Insert(String),
+    Backspace,
 }
 
-pub struct EditCtx<'a> {
-    pub text: &'a Rope,
-    pub sel: &'a Selection,
-    // TODO: breaks and measurement
-}
-
-impl<'a> EditCtx<'a> {
-    pub fn insert(&self, text: impl Into<Rope>) -> EditRequest {
-        let rope = text.into();
-        let mut builder = DeltaBuilder::new(self.text.len());
-        for region in self.sel.deref() {
-            let iv = Interval::new(region.min(), region.max());
-            builder.replace(iv, rope.clone());
-        }
-        EditRequest::new_edit(builder.build(), EditType::InsertChars)
-    }
-
-    pub fn delete_backward(&self) -> EditRequest {
-        let mut builder = DeltaBuilder::new(self.text.len());
-        for region in self.sel.deref() {
-            let start = offset_for_delete_backwards(&region, &self.text);
-            let iv = Interval::new(start, region.max());
-            if !iv.is_empty() {
-                builder.delete(iv);
+impl EditOp {
+    // Maybe return `Option<Selection>`? There's a chance it might not change.
+    // Also: needs measurement.
+    pub fn apply(&self, text: &mut Rope, sel: &Selection) -> Selection {
+        match self {
+            EditOp::Insert(s) => {
+                let rope = Rope::from(s);
+                let mut builder = DeltaBuilder::new(text.len());
+                for region in sel {
+                    builder.replace(region.min()..region.max(), rope.clone());
+                }
+                apply_delta(text, sel, &builder.build())
+            }
+            EditOp::Backspace => {
+                let mut builder = DeltaBuilder::new(text.len());
+                for region in sel {
+                    let start = backspace::offset_for_delete_backwards(region, text);
+                    if start != region.max() {
+                        builder.delete(start..region.max());
+                    }
+                }
+                apply_delta(text, sel, &builder.build())
             }
         }
-
-        if !builder.is_empty() {
-            EditRequest::new_edit(builder.build(), EditType::Delete)
-        } else {
-            EditRequest::nop()
-        }
     }
+}
+
+fn apply_delta(text: &mut Rope, sel: &Selection, delta: &RopeDelta) -> Selection {
+    *text = delta.apply(&text);
+    sel.apply_delta(delta, true, InsertDrift::Default)
 }

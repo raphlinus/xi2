@@ -1341,6 +1341,7 @@ version = "0.1.0"
 dependencies = [
  "druid 0.6.0 (git+https://github.com/linebender/druid?rev=90d81c9452441cd888b81b31a3d22f0bdcee1f3d)",
  "xi-rope 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xi-text-core 0.1.0",
 ]
 
 [metadata]

@@ -240,6 +240,15 @@ impl Deref for Selection {
     }
 }
 
+impl<'a> IntoIterator for &'a Selection {
+    type Item = &'a SelRegion;
+    type IntoIter = std::slice::Iter<'a, SelRegion>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.regions.iter()
+    }
+}
+
 /// The "affinity" of a cursor which is sitting exactly on a line break.
 ///
 /// We say "cursor" here rather than "caret" because (depending on presentation)
@@ -408,9 +417,7 @@ pub fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
     if n == 1 {
         v.remove(index);
     } else if n > 1 {
-        v[index..].rotate_left(n);
-        let new_len = v.len() - n;
-        v.truncate(new_len);
+        v.splice(index..index + n, std::iter::empty());
     }
 }
 
