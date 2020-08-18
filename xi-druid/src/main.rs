@@ -1,4 +1,5 @@
 mod edit_widget;
+mod key_bindings;
 mod util;
 
 use druid::{AppLauncher, Widget, WindowDesc};

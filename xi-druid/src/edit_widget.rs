@@ -1,18 +1,22 @@
 use std::sync::Arc;
 
 use druid::{
-    BoxConstraints, Data, Env, Event, EventCtx, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Size, UpdateCtx, Widget,
+    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Size,
+    UpdateCtx, Widget,
 };
 
 use druid::piet::{
-    Color, FontBuilder, PietText, PietTextLayout, RenderContext, Text, TextLayoutBuilder,
+    Color, FontBuilder, PietText, PietTextLayout, RenderContext, Text, TextLayout,
+    TextLayoutBuilder,
 };
+
+use druid::kurbo::{Line, Vec2};
 
 use xi_rope::Rope;
 
 use xi_text_core::{EditOp, SelRegion, Selection};
 
+use crate::key_bindings::KeyBindings;
 use crate::util;
 
 #[derive(Clone, Data)]
@@ -24,24 +28,24 @@ pub struct XiState {
 
 #[derive(Default)]
 pub struct EditWidget {
+    bindings: KeyBindings,
     // One per line
-    layouts: Vec<PietTextLayout>,
+    layouts: Vec<Layout>,
+}
+
+struct Layout {
+    piet_layout: PietTextLayout,
+    cursors: Vec<Line>,
 }
 
 impl Widget<XiState> for EditWidget {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut XiState, _env: &Env) {
         match event {
-            Event::KeyDown(k) => match &k.key {
-                KbKey::Character(c) => {
-                    // TODO: make this logic more sophisticated
-                    if !k.mods.ctrl() {
-                        self.apply_edit_op(data, EditOp::Insert(c.clone()));
-                    }
+            Event::KeyDown(k) => {
+                if let Some(op) = self.bindings.map_key(k) {
+                    self.apply_edit_op(data, op);
                 }
-                KbKey::Enter => self.apply_edit_op(data, EditOp::Insert("\n".into())),
-                KbKey::Backspace => self.apply_edit_op(data, EditOp::Backspace),
-                _ => (),
-            },
+            }
             Event::MouseDown(_) => {
                 // TODO: request focus on startup; why isn't it a method on LifeCycleCtx?
                 ctx.request_focus();
@@ -53,7 +57,7 @@ impl Widget<XiState> for EditWidget {
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &XiState, _env: &Env) {
         match event {
             LifeCycle::WidgetAdded => {
-                self.update_layouts(&data.text, &mut ctx.text());
+                self.update_layouts(data, &mut ctx.text());
             }
             _ => (),
         }
@@ -61,7 +65,7 @@ impl Widget<XiState> for EditWidget {
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &XiState, data: &XiState, _env: &Env) {
         let mut text = ctx.text();
-        self.update_layouts(&data.text, &mut text);
+        self.update_layouts(data, &mut text);
         ctx.request_paint();
     }
 
@@ -77,29 +81,62 @@ impl Widget<XiState> for EditWidget {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, _data: &XiState, _env: &Env) {
+        let x = 10.0;
         let mut y = 20.0;
         for layout in &self.layouts {
-            ctx.draw_text(layout, (10.0, y), &Color::WHITE);
+            ctx.draw_text(&layout.piet_layout, (x, y), &Color::WHITE);
+            for line in &layout.cursors {
+                let xy = Vec2::new(x, y);
+                // It should be possible to add Line + Vec2.
+                let l2 = Line::new(line.p0 + xy, line.p1 + xy);
+                ctx.stroke(l2, &Color::WHITE, 1.0);
+            }
             y += 18.0;
         }
     }
 }
 
 impl EditWidget {
-    fn update_layouts(&mut self, text: &Rope, factory: &mut PietText) {
+    fn update_layouts(&mut self, data: &XiState, factory: &mut PietText) {
         // In time, this will be more incremental.
-        let text = text.to_string();
         let font = factory.new_font_by_name("Segoe UI", 14.0).build().unwrap();
-        let layout: druid::piet::PietTextLayout =
-            factory.new_text_layout(&font, &text, None).build().unwrap();
-        self.layouts = vec![layout];
 
         self.layouts.clear();
-        for l in text.lines() {
-            let layout: druid::piet::PietTextLayout =
-                factory.new_text_layout(&font, l, None).build().unwrap();
+        let mut offset = 0;
+        let mut selections = &**data.sel;
+        for l in data.text.lines_raw(..) {
+            let mut end = l.len();
+            if l.ends_with('\n') {
+                end -= 1;
+            }
+            if l[..end].ends_with('\r') {
+                end -= 1;
+            }
+            let trim = &l[..end];
+            let piet_layout: druid::piet::PietTextLayout =
+                factory.new_text_layout(&font, trim, None).build().unwrap();
+            let mut cursors = Vec::new();
+            while let Some(sel_region) = selections.first() {
+                if sel_region.end <= offset + trim.len() {
+                    if let Some(hit) = piet_layout.hit_test_text_position(sel_region.end - offset) {
+                        let pt = hit.point - Vec2::new(0.0, 13.0);
+                        let height = 18.0;
+                        let line = Line::new(pt, pt + Vec2::new(0.0, height));
+                        cursors.push(line);
+                    }
+                    selections = &selections[1..];
+                } else {
+                    break;
+                }
+            }
+            let layout = Layout {
+                piet_layout,
+                cursors,
+            };
             self.layouts.push(layout);
+            offset += l.len();
         }
+        // TODO: deal with empty last line
     }
 
     fn apply_edit_op(&mut self, data: &mut XiState, op: EditOp) {

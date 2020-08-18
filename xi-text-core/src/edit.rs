@@ -18,6 +18,7 @@ use xi_rope::{DeltaBuilder, Rope, RopeDelta};
 
 use crate::backspace;
 use crate::selection::{InsertDrift, Selection};
+use crate::Movement;
 
 /// An edit operation.
 ///
@@ -25,6 +26,7 @@ use crate::selection::{InsertDrift, Selection};
 pub enum EditOp {
     Insert(String),
     Backspace,
+    Move(Movement),
 }
 
 impl EditOp {
@@ -50,6 +52,7 @@ impl EditOp {
                 }
                 apply_delta(text, sel, &builder.build())
             }
+            EditOp::Move(movement) => movement.update_selection(sel, text, false),
         }
     }
 }
