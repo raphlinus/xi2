@@ -14,9 +14,11 @@
 
 mod backspace;
 mod edit;
+mod measurement;
 mod movement;
 mod selection;
 
 pub use edit::EditOp;
+pub use measurement::Measurement;
 pub use movement::Movement;
 pub use selection::{Affinity, HorizPos, SelRegion, Selection};

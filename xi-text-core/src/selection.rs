@@ -23,10 +23,9 @@ use std::ops::Deref;
 
 use xi_rope::{Interval, RopeDelta, Transformer};
 
-/// A type representing horizontal measurements. This is currently in units
-/// that are not very well defined except that ASCII characters count as
-/// 1 each. It will change.
-pub type HorizPos = usize;
+/// A type representing horizontal measurements. Generally this will be
+/// px units.
+pub type HorizPos = f64;
 
 /// Indicates if an edit should try to drift inside or outside nearby selections. If the selection
 /// is zero width, that is, it is a caret, this value will be ignored, the equivalent of the
@@ -275,7 +274,7 @@ impl Default for Affinity {
 /// term "caret" (sometimes also "cursor", more loosely) to refer to a selection
 /// region with an empty interior. A "non-caret region" is one with a non-empty
 /// interior (i.e. `start != end`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SelRegion {
     /// The inactive edge of a selection, as a byte offset. When
     /// equal to end, the selection range acts as a caret.

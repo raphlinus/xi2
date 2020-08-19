@@ -14,7 +14,7 @@
 
 use xi_rope::Rope;
 
-use crate::{SelRegion, Selection};
+use crate::{Measurement, SelRegion, Selection};
 
 /// The specification of a movement.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -58,7 +58,13 @@ pub enum Movement {
 impl Movement {
     /// Update a selection region by movement.
     // TODO: additional measurement stuff.
-    pub fn update_region(&self, r: SelRegion, text: &Rope, modify: bool) -> SelRegion {
+    pub fn update_region(
+        &self,
+        r: SelRegion,
+        text: &Rope,
+        measurement: &impl Measurement,
+        modify: bool,
+    ) -> SelRegion {
         let (offset, horiz) = match self {
             Movement::Left => {
                 if r.is_caret() || modify {
@@ -82,17 +88,91 @@ impl Movement {
                     (r.max(), None)
                 }
             }
+            Movement::Up => {
+                let info = pos_info(&r, text, measurement, true, modify);
+                if info.rel_line > 0 {
+                    let rel_offset =
+                        measurement.from_pos(info.line_num, info.horiz, info.rel_line - 1);
+                    (info.line_start + rel_offset, Some(info.horiz))
+                } else if info.line_num == 0 {
+                    (0, Some(info.horiz))
+                } else {
+                    let prev_line = info.line_num - 1;
+                    let n_lines = measurement.n_visual_lines(prev_line);
+                    let prev_line_start = text.offset_of_line(prev_line);
+                    let rel_offset = measurement.from_pos(prev_line, info.horiz, n_lines - 1);
+                    (prev_line_start + rel_offset, Some(info.horiz))
+                }
+            }
+            Movement::Down => {
+                let info = pos_info(&r, text, measurement, false, modify);
+                let n_lines = measurement.n_visual_lines(info.line_num);
+                if info.rel_line + 1 < n_lines {
+                    let rel_offset =
+                        measurement.from_pos(info.line_num, info.horiz, info.rel_line + 1);
+                    (info.line_start + rel_offset, Some(info.horiz))
+                } else {
+                    let next_line_start = text.offset_of_line(info.line_num + 1);
+                    let offset = if next_line_start == text.len() {
+                        next_line_start
+                    } else {
+                        let rel_offset = measurement.from_pos(info.line_num + 1, info.horiz, 0);
+                        next_line_start + rel_offset
+                    };
+                    (offset, Some(info.horiz))
+                }
+            }
             _ => todo!(),
         };
         SelRegion::new(if modify { r.start } else { offset }, offset).with_horiz(horiz)
     }
 
-    pub fn update_selection(&self, s: &Selection, text: &Rope, modify: bool) -> Selection {
+    pub fn update_selection(
+        &self,
+        s: &Selection,
+        text: &Rope,
+        measurement: &impl Measurement,
+        modify: bool,
+    ) -> Selection {
         let mut result = Selection::new();
         for &r in s {
-            let new_region = self.update_region(r, text, modify);
+            let new_region = self.update_region(r, text, measurement, modify);
             result.add_region(new_region);
         }
         result
+    }
+}
+
+struct PosInfo {
+    line_num: usize,
+    horiz: f64,
+    line_start: usize,
+    rel_line: usize,
+}
+
+fn pos_info(
+    r: &SelRegion,
+    text: &Rope,
+    measurement: &impl Measurement,
+    move_up: bool,
+    modify: bool,
+) -> PosInfo {
+    let offset = if modify {
+        r.end
+    } else if move_up {
+        r.min()
+    } else {
+        r.max()
+    };
+    let line_num = text.line_of_offset(offset);
+    let line_start = text.offset_of_line(line_num);
+    let rel_offset = offset - line_start;
+    let (meas_horiz, rel_line) = measurement.to_pos(line_num, rel_offset);
+    let horiz = r.horiz.unwrap_or(meas_horiz);
+    PosInfo {
+        line_num,
+        horiz,
+        line_start,
+        rel_line,
     }
 }

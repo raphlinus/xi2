@@ -18,7 +18,7 @@ use xi_rope::{DeltaBuilder, Rope, RopeDelta};
 
 use crate::backspace;
 use crate::selection::{InsertDrift, Selection};
-use crate::Movement;
+use crate::{Measurement, Movement};
 
 /// An edit operation.
 ///
@@ -32,7 +32,12 @@ pub enum EditOp {
 impl EditOp {
     // Maybe return `Option<Selection>`? There's a chance it might not change.
     // Also: needs measurement.
-    pub fn apply(&self, text: &mut Rope, sel: &Selection) -> Selection {
+    pub fn apply(
+        &self,
+        text: &mut Rope,
+        sel: &Selection,
+        measurement: &impl Measurement,
+    ) -> Selection {
         match self {
             EditOp::Insert(s) => {
                 let rope = Rope::from(s);
@@ -52,7 +57,7 @@ impl EditOp {
                 }
                 apply_delta(text, sel, &builder.build())
             }
-            EditOp::Move(movement) => movement.update_selection(sel, text, false),
+            EditOp::Move(movement) => movement.update_selection(sel, text, measurement, false),
         }
     }
 }

@@ -26,6 +26,8 @@ impl KeyBindings {
             KbKey::Backspace => Some(EditOp::Backspace),
             KbKey::ArrowLeft => Some(EditOp::Move(Movement::Left)),
             KbKey::ArrowRight => Some(EditOp::Move(Movement::Right)),
+            KbKey::ArrowUp => Some(EditOp::Move(Movement::Up)),
+            KbKey::ArrowDown => Some(EditOp::Move(Movement::Down)),
             _ => None,
         }
     }

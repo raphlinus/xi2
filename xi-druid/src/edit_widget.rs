@@ -10,11 +10,11 @@ use druid::piet::{
     TextLayoutBuilder,
 };
 
-use druid::kurbo::{Line, Vec2};
+use druid::kurbo::{Line, Point, Vec2};
 
 use xi_rope::Rope;
 
-use xi_text_core::{EditOp, SelRegion, Selection};
+use xi_text_core::{EditOp, Measurement, SelRegion, Selection};
 
 use crate::key_bindings::KeyBindings;
 use crate::util;
@@ -36,6 +36,10 @@ pub struct EditWidget {
 struct Layout {
     piet_layout: PietTextLayout,
     cursors: Vec<Line>,
+}
+
+struct XiMeasurement<'a> {
+    layouts: &'a [Layout],
 }
 
 impl Widget<XiState> for EditWidget {
@@ -140,8 +144,15 @@ impl EditWidget {
     }
 
     fn apply_edit_op(&mut self, data: &mut XiState, op: EditOp) {
-        let new_sel = op.apply(&mut data.text, &data.sel);
+        let measurement = self.measurement();
+        let new_sel = op.apply(&mut data.text, &data.sel, &measurement);
         data.sel = Arc::new(new_sel);
+    }
+
+    fn measurement(&self) -> XiMeasurement {
+        XiMeasurement {
+            layouts: &self.layouts,
+        }
     }
 }
 
@@ -154,5 +165,31 @@ impl XiState {
             text,
             sel: Arc::new(sel),
         }
+    }
+}
+
+impl<'a> Measurement for XiMeasurement<'a> {
+    fn n_visual_lines(&self, _line_num: usize) -> usize {
+        1
+    }
+
+    fn to_pos(&self, line_num: usize, offset: usize) -> (f64, usize) {
+        let layout = &self.layouts[line_num];
+        let x = layout
+            .piet_layout
+            .hit_test_text_position(offset)
+            .map(|pos| pos.point.x)
+            .unwrap_or_default();
+        (x, 0)
+    }
+
+    fn from_pos(&self, line_num: usize, horiz: f64, _visual_line: usize) -> usize {
+        let layout = &self.layouts[line_num];
+        let point = Point::new(horiz, 0.0);
+        layout
+            .piet_layout
+            .hit_test_point(point)
+            .metrics
+            .text_position
     }
 }
