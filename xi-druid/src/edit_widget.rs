@@ -6,7 +6,7 @@ use druid::{
 };
 
 use druid::piet::{
-    Color, FontBuilder, PietText, PietTextLayout, RenderContext, Text, TextLayout,
+    Color, FontFamily, PietText, PietTextLayout, RenderContext, Text, TextLayout,
     TextLayoutBuilder,
 };
 
@@ -86,9 +86,9 @@ impl Widget<XiState> for EditWidget {
 
     fn paint(&mut self, ctx: &mut PaintCtx, _data: &XiState, _env: &Env) {
         let x = 10.0;
-        let mut y = 20.0;
+        let mut y = 12.0;
         for layout in &self.layouts {
-            ctx.draw_text(&layout.piet_layout, (x, y), &Color::WHITE);
+            ctx.draw_text(&layout.piet_layout, (x, y));
             for line in &layout.cursors {
                 let xy = Vec2::new(x, y);
                 // It should be possible to add Line + Vec2.
@@ -103,7 +103,7 @@ impl Widget<XiState> for EditWidget {
 impl EditWidget {
     fn update_layouts(&mut self, data: &XiState, factory: &mut PietText) {
         // In time, this will be more incremental.
-        let font = factory.new_font_by_name("Segoe UI", 14.0).build().unwrap();
+        let font_family = FontFamily::MONOSPACE;
 
         self.layouts.clear();
         let mut offset = 0;
@@ -118,16 +118,20 @@ impl EditWidget {
             }
             let trim = &l[..end];
             let piet_layout: druid::piet::PietTextLayout =
-                factory.new_text_layout(&font, trim, None).build().unwrap();
+                factory.new_text_layout(&trim)
+                .font(font_family.clone(), 14.0)
+                .text_color(Color::WHITE)
+                .build()
+                .unwrap();
+
             let mut cursors = Vec::new();
             while let Some(sel_region) = selections.first() {
                 if sel_region.end <= offset + trim.len() {
-                    if let Some(hit) = piet_layout.hit_test_text_position(sel_region.end - offset) {
-                        let pt = hit.point - Vec2::new(0.0, 13.0);
-                        let height = 18.0;
-                        let line = Line::new(pt, pt + Vec2::new(0.0, height));
-                        cursors.push(line);
-                    }
+                    let hit = piet_layout.hit_test_text_position(sel_region.end - offset);
+                    let pt = hit.point;
+                    let height = 18.0;
+                    let line = Line::new(pt, pt + Vec2::new(0.0, height));
+                    cursors.push(line);
                     selections = &selections[1..];
                 } else {
                     break;
@@ -177,9 +181,7 @@ impl<'a> Measurement for XiMeasurement<'a> {
         let layout = &self.layouts[line_num];
         let x = layout
             .piet_layout
-            .hit_test_text_position(offset)
-            .map(|pos| pos.point.x)
-            .unwrap_or_default();
+            .hit_test_text_position(offset).point.x;
         (x, 0)
     }
 
@@ -189,7 +191,6 @@ impl<'a> Measurement for XiMeasurement<'a> {
         layout
             .piet_layout
             .hit_test_point(point)
-            .metrics
-            .text_position
+            .idx
     }
 }
