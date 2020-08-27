@@ -95,7 +95,7 @@ impl Widget<XiState> for EditWidget {
                 let l2 = Line::new(line.p0 + xy, line.p1 + xy);
                 ctx.stroke(l2, &Color::WHITE, 1.0);
             }
-            y += 18.0;
+            y += layout.piet_layout.size().height;
         }
     }
 }
@@ -108,7 +108,13 @@ impl EditWidget {
         self.layouts.clear();
         let mut offset = 0;
         let mut selections = &**data.sel;
-        for l in data.text.lines_raw(..) {
+        let mut text = data.text.clone();
+        // This is an expedient hack to make sure we get a layout and can draw
+        // the cursor for the last (empty) line, if it exists.
+        if text.is_empty() || text.byte_at(text.len() - 1) == b'\n' {
+            text = text + "\n".into();
+        }
+        for l in text.lines_raw(..) {
             let mut end = l.len();
             if l.ends_with('\n') {
                 end -= 1;
@@ -119,6 +125,7 @@ impl EditWidget {
             let trim = &l[..end];
             let piet_layout: druid::piet::PietTextLayout =
                 factory.new_text_layout(&trim)
+                .max_width(400.0)
                 .font(font_family.clone(), 14.0)
                 .text_color(Color::WHITE)
                 .build()
@@ -128,7 +135,8 @@ impl EditWidget {
             while let Some(sel_region) = selections.first() {
                 if sel_region.end <= offset + trim.len() {
                     let hit = piet_layout.hit_test_text_position(sel_region.end - offset);
-                    let pt = hit.point;
+                    // TODO: use line metrics, but good enough for a quick hack.
+                    let pt = hit.point - Vec2::new(0.0, 12.0);
                     let height = 18.0;
                     let line = Line::new(pt, pt + Vec2::new(0.0, height));
                     cursors.push(line);
@@ -173,24 +181,29 @@ impl XiState {
 }
 
 impl<'a> Measurement for XiMeasurement<'a> {
-    fn n_visual_lines(&self, _line_num: usize) -> usize {
-        1
+    fn n_visual_lines(&self, line_num: usize) -> usize {
+        let layout = &self.layouts[line_num].piet_layout;
+        layout.line_count()
     }
 
     fn to_pos(&self, line_num: usize, offset: usize) -> (f64, usize) {
-        let layout = &self.layouts[line_num];
-        let x = layout
-            .piet_layout
-            .hit_test_text_position(offset).point.x;
-        (x, 0)
+        let layout = &self.layouts[line_num].piet_layout;
+        let hit = layout
+            .hit_test_text_position(offset);
+        (hit.point.x, hit.line)
     }
 
-    fn from_pos(&self, line_num: usize, horiz: f64, _visual_line: usize) -> usize {
-        let layout = &self.layouts[line_num];
-        let point = Point::new(horiz, 0.0);
-        layout
-            .piet_layout
-            .hit_test_point(point)
-            .idx
+    fn from_pos(&self, line_num: usize, horiz: f64, visual_line: usize) -> usize {
+        let layout = &self.layouts[line_num].piet_layout;
+        if let Some(metric) = layout.line_metric(visual_line) {
+            let y = metric.y_offset + 0.5 * metric.height;
+            let point = Point::new(horiz, y);
+            layout
+                .hit_test_point(point)
+                .idx
+        } else {
+            // This shouldn't happen, but provide a reasonable value.
+            0
+        }
     }
 }
