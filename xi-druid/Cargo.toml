@@ -6,6 +6,6 @@ license = "Apache-2.0"
 edition = "2018"
 
 [dependencies]
-druid = { git = "https://github.com/linebender/druid", rev = "61c988241ae9befe6983590418897182864753b7" }
+druid = { git = "https://github.com/linebender/druid", rev = "0818372f7519b2a9dc2bfb1396f780956db2de9c" }
 xi-rope = "0.3"
 xi-text-core = { path = "../xi-text-core" }

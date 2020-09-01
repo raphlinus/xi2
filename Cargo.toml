@@ -4,6 +4,3 @@ members = [
     "xi-druid",
     "xi-text-core",
 ]
-
-[patch.crates-io]
-piet-common = { git = "https://github.com/linebender/piet", rev = "3de2603aa8de58168f8f793467cb1d26f20e36bd" }
