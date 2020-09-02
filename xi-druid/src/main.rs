@@ -1,4 +1,5 @@
 mod edit_widget;
+mod height_rope;
 mod key_bindings;
 mod util;
 
