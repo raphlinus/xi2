@@ -265,6 +265,7 @@ impl LayoutRopeBuilder {
         LayoutRopeBuilder(TreeBuilder::new())
     }
 
+    #[allow(unused)]
     pub fn push_rope_slice(&mut self, other: &LayoutRope, range: Range<usize>) {
         // TODO: use push_subseq method on TreeBuilder when that lands.
         self.0.push(other.0.subseq(Interval::from(range)))

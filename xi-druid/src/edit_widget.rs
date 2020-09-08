@@ -6,7 +6,7 @@ use druid::{
 };
 
 use druid::piet::{
-    Color, FontFamily, PietText, PietTextLayout, RenderContext, Text, TextLayout, TextLayoutBuilder,
+    Color, FontFamily, PietText, RenderContext, Text, TextLayout, TextLayoutBuilder,
 };
 
 use druid::kurbo::{Line, Point, Vec2};
@@ -16,6 +16,7 @@ use xi_rope::Rope;
 use xi_text_core::{EditOp, Measurement, SelRegion, Selection};
 
 use crate::key_bindings::KeyBindings;
+use crate::layout_rope::{Layout, LayoutRope, LayoutRopeBuilder};
 use crate::util;
 
 #[derive(Clone, Data)]
@@ -28,17 +29,14 @@ pub struct XiState {
 #[derive(Default)]
 pub struct EditWidget {
     bindings: KeyBindings,
-    // One per line
-    layouts: Vec<Layout>,
-}
-
-struct Layout {
-    piet_layout: PietTextLayout,
-    cursors: Vec<Line>,
+    layouts: LayoutRope,
+    // Each cursor is represented as the paragraph number and a line
+    // relative to the start of that paragraph.
+    cursors: Vec<(usize, Line)>,
 }
 
 struct XiMeasurement<'a> {
-    layouts: &'a [Layout],
+    layouts: &'a LayoutRope,
 }
 
 impl Widget<XiState> for EditWidget {
@@ -61,6 +59,7 @@ impl Widget<XiState> for EditWidget {
         match event {
             LifeCycle::WidgetAdded => {
                 self.update_layouts(data, &mut ctx.text());
+                self.update_cursors(data);
             }
             _ => (),
         }
@@ -69,6 +68,7 @@ impl Widget<XiState> for EditWidget {
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &XiState, data: &XiState, _env: &Env) {
         let mut text = ctx.text();
         self.update_layouts(data, &mut text);
+        self.update_cursors(data);
         ctx.request_paint();
     }
 
@@ -86,15 +86,22 @@ impl Widget<XiState> for EditWidget {
     fn paint(&mut self, ctx: &mut PaintCtx, _data: &XiState, _env: &Env) {
         let x = 10.0;
         let mut y = 12.0;
-        for layout in &self.layouts {
-            ctx.draw_text(&layout.piet_layout, (x, y));
-            for line in &layout.cursors {
+        let mut para_ix = 0;
+        let mut cursor_ix = 0;
+        for (height, layout) in &self.layouts {
+            ctx.draw_text(layout.piet_layout(), (x, y));
+            while let Some((c_para, line)) = self.cursors.get(cursor_ix) {
+                if para_ix != *c_para {
+                    break;
+                }
                 let xy = Vec2::new(x, y);
                 // It should be possible to add Line + Vec2.
                 let l2 = Line::new(line.p0 + xy, line.p1 + xy);
                 ctx.stroke(l2, &Color::WHITE, 1.0);
+                cursor_ix += 1;
             }
-            y += layout.piet_layout.size().height;
+            y += height.to_f64();
+            para_ix += 1;
         }
     }
 }
@@ -104,7 +111,7 @@ impl EditWidget {
         // In time, this will be more incremental.
         let font_family = FontFamily::MONOSPACE;
 
-        self.layouts.clear();
+        let mut builder = LayoutRopeBuilder::new();
         let mut offset = 0;
         let mut selections = &**data.sel;
         let mut text = data.text.clone();
@@ -144,14 +151,27 @@ impl EditWidget {
                     break;
                 }
             }
-            let layout = Layout {
-                piet_layout,
-                cursors,
-            };
-            self.layouts.push(layout);
+            let layout = Layout::new(piet_layout);
+            builder.push_layout(layout);
             offset += l.len();
         }
-        // TODO: deal with empty last line
+        self.layouts = builder.build()
+    }
+
+    fn update_cursors(&mut self, data: &XiState) {
+        self.cursors.clear();
+        for sel_region in &*data.sel {
+            let cursor_offset = sel_region.end;
+            let para_ix = data.text.line_of_offset(cursor_offset);
+            let para_start = data.text.offset_of_line(para_ix);
+            let piet_layout = self.layouts.get(para_ix).unwrap().1.piet_layout();
+            let hit = piet_layout.hit_test_text_position(cursor_offset - para_start);
+            // TODO: use line metrics, but good enough for a quick hack.
+            let pt = hit.point - Vec2::new(0.0, 12.0);
+            let height = 18.0;
+            let line = Line::new(pt, pt + Vec2::new(0.0, height));
+            self.cursors.push((para_ix, line));
+        }
     }
 
     fn apply_edit_op(&mut self, data: &mut XiState, op: EditOp) {
@@ -181,18 +201,18 @@ impl XiState {
 
 impl<'a> Measurement for XiMeasurement<'a> {
     fn n_visual_lines(&self, line_num: usize) -> usize {
-        let layout = &self.layouts[line_num].piet_layout;
+        let layout = self.layouts.get(line_num).unwrap().1.piet_layout();
         layout.line_count()
     }
 
     fn to_pos(&self, line_num: usize, offset: usize) -> (f64, usize) {
-        let layout = &self.layouts[line_num].piet_layout;
+        let layout = self.layouts.get(line_num).unwrap().1.piet_layout();
         let hit = layout.hit_test_text_position(offset);
         (hit.point.x, hit.line)
     }
 
     fn from_pos(&self, line_num: usize, horiz: f64, visual_line: usize) -> usize {
-        let layout = &self.layouts[line_num].piet_layout;
+        let layout = self.layouts.get(line_num).unwrap().1.piet_layout();
         if let Some(metric) = layout.line_metric(visual_line) {
             let y = metric.y_offset + 0.5 * metric.height;
             let point = Point::new(horiz, y);
