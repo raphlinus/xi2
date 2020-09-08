@@ -1,6 +1,6 @@
 mod edit_widget;
-mod height_rope;
 mod key_bindings;
+mod layout_rope;
 mod util;
 
 use druid::{AppLauncher, Widget, WindowDesc};

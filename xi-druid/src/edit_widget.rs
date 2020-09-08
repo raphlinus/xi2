@@ -6,8 +6,7 @@ use druid::{
 };
 
 use druid::piet::{
-    Color, FontFamily, PietText, PietTextLayout, RenderContext, Text, TextLayout,
-    TextLayoutBuilder,
+    Color, FontFamily, PietText, PietTextLayout, RenderContext, Text, TextLayout, TextLayoutBuilder,
 };
 
 use druid::kurbo::{Line, Point, Vec2};
@@ -123,8 +122,8 @@ impl EditWidget {
                 end -= 1;
             }
             let trim = &l[..end];
-            let piet_layout: druid::piet::PietTextLayout =
-                factory.new_text_layout(&trim)
+            let piet_layout: druid::piet::PietTextLayout = factory
+                .new_text_layout(&trim)
                 .max_width(400.0)
                 .font(font_family.clone(), 14.0)
                 .text_color(Color::WHITE)
@@ -188,8 +187,7 @@ impl<'a> Measurement for XiMeasurement<'a> {
 
     fn to_pos(&self, line_num: usize, offset: usize) -> (f64, usize) {
         let layout = &self.layouts[line_num].piet_layout;
-        let hit = layout
-            .hit_test_text_position(offset);
+        let hit = layout.hit_test_text_position(offset);
         (hit.point.x, hit.line)
     }
 
@@ -198,9 +196,7 @@ impl<'a> Measurement for XiMeasurement<'a> {
         if let Some(metric) = layout.line_metric(visual_line) {
             let y = metric.y_offset + 0.5 * metric.height;
             let point = Point::new(horiz, y);
-            layout
-                .hit_test_point(point)
-                .idx
+            layout.hit_test_point(point).idx
         } else {
             // This shouldn't happen, but provide a reasonable value.
             0
